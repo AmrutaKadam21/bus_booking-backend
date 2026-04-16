@@ -1,0 +1,47 @@
+// routes/bookingRoutes.js
+const express = require("express");
+const router = express.Router();
+const authMiddleware = require("../middleware/authMiddleware");
+const {
+  createBooking,
+  getBooking,
+  getUserBookings,
+  cancelBooking,
+  getSeatAvailability,
+  initializeSeatLayout,
+  holdSeats
+} = require("../controllers/bookingController");
+
+// Create new booking (no auth required)
+router.post("/create", createBooking);
+
+// Get all bookings (admin)
+router.get("/all", async (req, res) => {
+  try {
+    const Booking = require("../models/bookingModel");
+    const bookings = await Booking.find().sort({ createdAt: -1 });
+    res.json({ success: true, data: bookings });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Hold seats temporarily
+router.post("/hold-seats", authMiddleware, holdSeats);
+
+// Get user bookings
+router.get("/user/bookings", authMiddleware, getUserBookings);
+
+// Get seat availability (public - no auth)
+router.get("/seats/:busId", getSeatAvailability);
+
+// Initialize seat layout
+router.post("/init-seats/:busId", initializeSeatLayout);
+
+// Cancel booking
+router.put("/cancel/:bookingId", authMiddleware, cancelBooking);
+
+// Get booking by ID (public)
+router.get("/:bookingId", getBooking);
+
+module.exports = router;

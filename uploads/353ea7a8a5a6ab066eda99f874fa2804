@@ -1,0 +1,34 @@
+busName,busNumber,from,to,departureTime,arrivalTime,price,seats,busType,rating,ratingsCount,amenities,boardingPoints,droppingPoints,travelDurationMins
+Shivneri Express,MH12AB1001,Pune,Mumbai,10:00 PM,06:00 AM,700,40,AC Sleeper,4.5,120,"wifi,charging,blanket,safety","Swargate,Wakad","Dadar,Thane",480
+RedBus Travels,MH12AB1002,Pune,Mumbai,06:00 PM,02:00 AM,500,45,Non-AC Seater,4.2,95,"charging,luggage","Shivaji Nagar","Borivali,Thane",480
+VRL Travels,KA01AB1003,Mumbai,Bangalore,08:00 PM,08:00 AM,1200,40,AC Sleeper,4.6,210,"wifi,blanket,entertainment","Dadar","Silk Board,Majestic",720
+SRS Travels,KA01AB1004,Bangalore,Hyderabad,09:00 PM,06:00 AM,900,42,AC Sleeper,4.3,150,"wifi,charging","BTM,Electronic City","Kukatpally,Ameerpet",540
+Orange Travels,TS09AB1005,Hyderabad,Pune,07:00 PM,07:00 AM,1100,40,AC Sleeper,4.7,300,"wifi,blanket,refreshment","Ameerpet","Wakad,Swargate",720
+Neeta Travels,MH12AB1006,Mumbai,Goa,09:00 PM,07:00 AM,1500,38,Deluxe AC Sleeper,4.6,280,"wifi,blanket,refreshment,entertainment","Borivali,Thane","Panaji,Mapusa",600
+Paulo Travels,GA01AB1007,Goa,Mumbai,08:00 PM,06:00 AM,1400,38,Executive AC Sleeper,4.5,240,"wifi,blanket,charging","Mapusa,Panaji","Dadar,Thane",600
+KPN Travels,TN01AB1008,Chennai,Bangalore,10:00 PM,05:00 AM,800,40,AC Seater,4.3,190,"charging,entertainment","Koyambedu","Majestic",420
+SRM Travels,TN01AB1009,Chennai,Hyderabad,06:00 PM,06:00 AM,1300,40,AC Sleeper,4.4,220,"wifi,blanket","Koyambedu","Ameerpet",720
+Morning Star,AP01AB1010,Hyderabad,Chennai,08:00 PM,08:00 AM,1250,40,AC Sleeper,4.2,160,"wifi,charging","LB Nagar","Koyambedu",720
+IntrCity SmartBus,MH12AB1011,Pune,Nashik,07:00 AM,12:00 PM,400,45,AC Seater,4.3,140,"wifi,charging","Shivaji Nagar","CBS",300
+Purple Travels,KA01AB1012,Bangalore,Pune,05:00 PM,07:00 AM,1200,40,AC Sleeper,4.5,210,"wifi,blanket","Majestic","Swargate",840
+National Travels,MH12AB1013,Pune,Kolhapur,09:00 PM,03:00 AM,600,42,Non-AC Sleeper,4.1,100,"blanket,luggage","Swargate","Kolhapur Stand",360
+Sai Travels,MH12AB1014,Pune,Aurangabad,08:00 PM,04:00 AM,650,40,AC Sleeper,4.2,110,"charging,blanket","Wakad","CIDCO",480
+Humsafar Travels,MH12AB1015,Mumbai,Nashik,10:00 AM,02:00 PM,350,45,Non-AC Seater,4.0,90,"luggage","Dadar","CBS",240
+
+Prasanna Purple,KA01AB1016,Bangalore,Hyderabad,06:00 PM,04:00 AM,950,40,Executive AC Sleeper,4.6,260,"wifi,blanket,refreshment","Majestic","Kukatpally",600
+VRL Deluxe,KA01AB1017,Bangalore,Mumbai,07:00 PM,09:00 AM,1500,40,Deluxe AC Sleeper,4.7,320,"wifi,entertainment,blanket","Electronic City","Borivali",840
+Orange Executive,TS09AB1018,Hyderabad,Bangalore,09:00 PM,06:00 AM,950,40,Executive AC Sleeper,4.6,280,"wifi,charging,blanket","Ameerpet","Majestic",540
+GreenLine Travels,KA01AB1019,Bangalore,Chennai,06:00 AM,01:00 PM,700,45,AC Seater,4.4,180,"wifi,charging","Silk Board","Koyambedu",420
+Sundara Travels,TN01AB1020,Chennai,Coimbatore,09:00 PM,06:00 AM,900,40,AC Sleeper,4.3,150,"blanket,charging","Koyambedu","Gandhipuram",540
+
+Kaveri Travels,KA01AB1021,Bangalore,Coimbatore,08:00 PM,05:00 AM,850,40,AC Sleeper,4.2,130,"charging,blanket","Majestic","Gandhipuram",540
+Jabbar Travels,TS09AB1022,Hyderabad,Vijayawada,10:00 PM,05:00 AM,600,42,Non-AC Sleeper,4.1,120,"luggage,blanket","Ameerpet","Benz Circle",420
+SVR Travels,AP01AB1023,Vijayawada,Hyderabad,09:00 PM,04:00 AM,650,40,AC Sleeper,4.3,150,"wifi,charging","Benz Circle","Kukatpally",420
+APSRTC,AP01AB1024,Hyderabad,Warangal,07:00 AM,10:00 AM,300,50,Non-AC Seater,4.0,200,"luggage","MGBS","Warangal Stand",180
+TSRTC,TS09AB1025,Hyderabad,Nizamabad,08:00 AM,12:00 PM,350,50,Non-AC Seater,4.1,180,"luggage","JBS","Nizamabad Stand",240
+
+Mahindra Travels,MH12AB1026,Pune,Solapur,10:00 PM,05:00 AM,700,40,AC Sleeper,4.3,120,"blanket,charging","Swargate","Solapur Stand",420
+Shree Travels,MH12AB1027,Pune,Ahmednagar,08:00 AM,12:00 PM,300,45,Non-AC Seater,4.0,90,"luggage","Shivaji Nagar","Ahmednagar Stand",240
+Sai Krupa Travels,MH12AB1028,Pune,Satara,07:00 AM,10:00 AM,250,45,Non-AC Seater,4.1,80,"luggage","Swargate","Satara Stand",180
+Royal Cruiser,MH12AB1029,Mumbai,Pune,11:00 PM,05:00 AM,800,40,Deluxe AC Sleeper,4.6,200,"wifi,entertainment","Borivali","Swargate",360
+CityLink Travels,MH12AB1030,Nashik,Mumbai,06:00 PM,11:00 PM,400,45,AC Seater,4.2,110,"charging","CBS","Dadar",300
