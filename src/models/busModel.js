@@ -9,6 +9,8 @@ const seatSchema = new mongoose.Schema({
     default: 'available'
   },
   isHandicap: { type: Boolean, default: false },
+  deckType: { type: String, enum: ['lower', 'upper', 'single'], default: 'single' }, // lower/upper for sleeper, single for seater
+  seatType: { type: String, enum: ['seater', 'sleeper'], default: 'seater' },
   bookedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Booking' },
   bookedAt: Date,
 });

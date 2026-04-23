@@ -142,25 +142,78 @@ exports.getSeatAvailability = async (req, res) => {
       return res.status(404).json({ success: false, message: "Bus not found" });
     }
     
-    const availableSeats = bus.seatLayout?.filter(seat => seat.status === 'available') || [];
-    const bookedSeats = bus.seatLayout?.filter(seat => seat.status === 'booked') || [];
-    const handicapSeats = bus.seatLayout?.filter(seat => seat.isHandicap) || [];
-    
+    const layout = bus.seatLayout || [];
+    const type = (bus.busType || '').toLowerCase();
+    const hasDecks = type.includes('sleeper') || type.includes('semi');
+
     res.json({
       success: true,
       data: {
         totalSeats: bus.seats || 40,
-        availableSeats: availableSeats.length,
-        bookedSeats: bookedSeats.length,
-        seatLayout: bus.seatLayout || [],
-        availableSeatsList: availableSeats,
-        bookedSeatsList: bookedSeats,
-        handicapSeatsList: handicapSeats
+        busType: bus.busType,
+        hasDecks,
+        lowerDeck: hasDecks ? layout.filter(s => s.deckType === 'lower') : [],
+        upperDeck: hasDecks ? layout.filter(s => s.deckType === 'upper') : [],
+        seatLayout: layout,
+        availableSeats: layout.filter(s => s.status === 'available').length,
+        bookedSeats: layout.filter(s => s.status === 'booked').length,
       }
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
+};
+
+// Helper: generate seat layout based on bus type
+const generateSeatLayout = (totalSeats, busType = '') => {
+  const type = busType.toLowerCase();
+  const isSleeper = type.includes('sleeper');
+  const isSemiSleeper = type.includes('semi');
+  const seatLayout = [];
+
+  if (isSleeper) {
+    // Full sleeper: split equally into lower and upper deck
+    // Lower deck: seats 1 to half, Upper deck: rest
+    const halfSeats = Math.ceil(totalSeats / 2);
+    for (let i = 1; i <= totalSeats; i++) {
+      const deck = i <= halfSeats ? 'lower' : 'upper';
+      seatLayout.push({
+        seatNumber: `${i}`,
+        status: 'available',
+        isHandicap: false,
+        deckType: deck,
+        seatType: 'sleeper'
+      });
+    }
+  } else if (isSemiSleeper) {
+    // Semi-sleeper: lower deck = seater, upper deck = sleeper
+    const seaterCount = Math.ceil(totalSeats * 0.6); // 60% seater (lower)
+    for (let i = 1; i <= totalSeats; i++) {
+      const isLower = i <= seaterCount;
+      seatLayout.push({
+        seatNumber: `${i}`,
+        status: 'available',
+        isHandicap: (i <= 2), // first 2 seats handicap on lower
+        deckType: isLower ? 'lower' : 'upper',
+        seatType: isLower ? 'seater' : 'sleeper'
+      });
+    }
+  } else {
+    // Regular seater: single deck, 2+2 layout
+    const seatsPerRow = 4;
+    for (let i = 0; i < totalSeats; i++) {
+      const row = Math.floor(i / seatsPerRow);
+      const col = i % seatsPerRow;
+      seatLayout.push({
+        seatNumber: `${i + 1}`,
+        status: 'available',
+        isHandicap: (row === 0 && (col === 2 || col === 3)),
+        deckType: 'single',
+        seatType: 'seater'
+      });
+    }
+  }
+  return seatLayout;
 };
 
 // Initialize seat layout for a bus
@@ -174,27 +227,7 @@ exports.initializeSeatLayout = async (req, res) => {
       return res.status(404).json({ success: false, message: "Bus not found" });
     }
     
-    const seatLayout = [];
-    let seatCounter = 1;
-
-    const seatsPerRow = 4; // 2 left + 2 right
-
-    for (let i = 0; i < totalSeats; i++) {
-      const row = Math.floor(i / seatsPerRow); // which row
-      const col = i % seatsPerRow; // which column (0,1,2,3)
-
-      // 👉 Handicap seats = first row (row 0) + right side (col 2,3)
-      const isHandicap = (row === 0 && (col === 2 || col === 3));
-
-      seatLayout.push({
-        seatNumber: `${seatCounter}`,
-        status: 'available',
-        isHandicap: isHandicap
-      });
-
-      seatCounter++;
-    }
-    
+    const seatLayout = generateSeatLayout(totalSeats, bus.busType);
     bus.seatLayout = seatLayout;
     bus.seats = totalSeats;
     await bus.save();
@@ -202,7 +235,7 @@ exports.initializeSeatLayout = async (req, res) => {
     res.json({
       success: true,
       message: "Seat layout initialized successfully",
-      data: { seatLayout }
+      data: { seatLayout, busType: bus.busType }
     });
 
   } catch (error) {

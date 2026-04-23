@@ -93,42 +93,62 @@ exports.updateBusSeats = async (req, res) => {
     const { busId } = req.params;
     const { totalSeats } = req.body;
 
+    const bus = await Bus.findById(busId);
+    if (!bus) return res.status(404).json({ success: false, message: "Bus not found" });
+
+    const type = (bus.busType || '').toLowerCase();
+    const isSleeper = type.includes('sleeper') && !type.includes('semi');
+    const isSemiSleeper = type.includes('semi');
     const seatLayout = [];
-    let seatCounter = 1;
-    const seatsPerRow = 4;
 
-    for (let i = 0; i < totalSeats; i++) {
-      const row = Math.floor(i / seatsPerRow);
-      const col = i % seatsPerRow;
-
-      const isHandicap = (row === 0 && (col === 2 || col === 3));
-
-      seatLayout.push({
-        seatNumber: `${seatCounter}`,
-        status: 'available',
-        isHandicap: isHandicap
-      });
-
-      seatCounter++;
+    if (isSleeper) {
+      const halfSeats = Math.ceil(totalSeats / 2);
+      for (let i = 1; i <= totalSeats; i++) {
+        seatLayout.push({
+          seatNumber: `${i}`,
+          status: 'available',
+          isHandicap: false,
+          deckType: i <= halfSeats ? 'lower' : 'upper',
+          seatType: 'sleeper'
+        });
+      }
+    } else if (isSemiSleeper) {
+      const seaterCount = Math.ceil(totalSeats * 0.6);
+      for (let i = 1; i <= totalSeats; i++) {
+        const isLower = i <= seaterCount;
+        seatLayout.push({
+          seatNumber: `${i}`,
+          status: 'available',
+          isHandicap: (i <= 2),
+          deckType: isLower ? 'lower' : 'upper',
+          seatType: isLower ? 'seater' : 'sleeper'
+        });
+      }
+    } else {
+      const seatsPerRow = 4;
+      for (let i = 0; i < totalSeats; i++) {
+        const row = Math.floor(i / seatsPerRow);
+        const col = i % seatsPerRow;
+        seatLayout.push({
+          seatNumber: `${i + 1}`,
+          status: 'available',
+          isHandicap: (row === 0 && (col === 2 || col === 3)),
+          deckType: 'single',
+          seatType: 'seater'
+        });
+      }
     }
 
-    const bus = await Bus.findByIdAndUpdate(
+    const updatedBus = await Bus.findByIdAndUpdate(
       busId,
       { seatLayout, seats: totalSeats },
       { new: true }
     );
 
-    if (!bus) {
-      return res.status(404).json({
-        success: false,
-        message: "Bus not found"
-      });
-    }
-
     res.json({
       success: true,
       message: "Seat layout updated successfully",
-      data: bus
+      data: updatedBus
     });
 
   } catch (error) {
