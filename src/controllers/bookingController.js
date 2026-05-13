@@ -1,6 +1,6 @@
 const Booking = require("../models/bookingModel");
 const Bus = require("../models/busModel");
-const nodemailer = require("nodemailer");
+const nodemailer = require("nodemailer").default || require("nodemailer");
 
 // Email configuration
 const transporter = nodemailer.createTransporter({
