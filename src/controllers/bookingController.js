@@ -1,18 +1,8 @@
 const Booking = require("../models/bookingModel");
 const Bus = require("../models/busModel");
-const nodemailer = require("nodemailer");
+const { Resend } = require("resend");
 
-// ── Nodemailer transporter (Gmail SMTP + App Password) ──
-const createTransporter = () =>
-  nodemailer.createTransport({
-    host: "smtp.gmail.com",
-    port: 587,
-    secure: false,
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
-    },
-  });
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // ── Build full HTML ticket email ──
 const buildTicketHTML = (booking) => {
@@ -99,26 +89,23 @@ const buildTicketHTML = (booking) => {
 </html>`;
 };
 
-// ── Send ticket email via Gmail SMTP ──
+// ── Send ticket email via Resend (works on Render) ──
 const sendTicketEmail = async (booking) => {
-  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-    console.log("EMAIL_USER / EMAIL_PASS not set in .env — skipping email.");
+  if (!process.env.RESEND_API_KEY) {
+    console.log("RESEND_API_KEY not set — skipping email.");
     return;
   }
   const passenger = booking.passengers[0];
-  if (!passenger?.email) {
-    console.log("No passenger email found — skipping email.");
-    return;
-  }
+  if (!passenger?.email) return;
   try {
-    const transporter = createTransporter();
-    await transporter.sendMail({
-      from: `"Raj Mudra Travels" <${process.env.EMAIL_USER}>`,
+    const { error } = await resend.emails.send({
+      from: "Raj Mudra Travels <onboarding@resend.dev>",
       to: passenger.email,
       subject: `Booking Confirmed! ${booking.bookingId} | ${booking.from} to ${booking.to}`,
       html: buildTicketHTML(booking),
     });
-    console.log(`Ticket email sent to ${passenger.email}`);
+    if (error) console.error("Resend error:", error);
+    else console.log(`Ticket email sent to ${passenger.email}`);
   } catch (err) {
     console.error("Email send failed:", err.message);
   }
