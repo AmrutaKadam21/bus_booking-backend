@@ -7,6 +7,7 @@ const connectDB = require("./src/config/db");
 const authRoutes = require("./src/routes/authRoutes");
 const busRoutes = require("./src/routes/busRoutes");
 const bookingRoutes = require("./src/routes/bookingRoutes");
+const contactRoutes = require("./src/routes/contactRoutes");
 
 const app = express(); // ✅ FIRST create app
 
@@ -23,6 +24,7 @@ app.use(express.json());
 app.use("/api/auth", authRoutes);
 app.use("/api/buses", busRoutes);
 app.use("/api/bookings", bookingRoutes);
+app.use("/api/contact", contactRoutes);
 
 // Test route
 app.get("/", (req, res) => {

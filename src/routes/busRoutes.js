@@ -20,6 +20,22 @@ router.put("/price/bulk", bulkUpdatePrice);
 router.put("/price/by-route", updatePriceByRoute);
 router.put("/price/:id", updatePrice);
 
+// ================= GET DISTINCT CITIES =================
+router.get("/cities", async (req, res) => {
+  try {
+    const [fromCities, toCities] = await Promise.all([
+      Bus.distinct("from"),
+      Bus.distinct("to"),
+    ]);
+    const cities = [...new Set([...fromCities, ...toCities])]
+      .filter(Boolean)
+      .sort();
+    res.json({ success: true, data: cities });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ================= SEARCH BUSES BY ROUTE =================
 router.get("/search-buses", async (req, res) => {
   try {
