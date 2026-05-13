@@ -199,6 +199,17 @@ exports.updateBusSeats = async (req, res) => {
 };
 
 
+// ✅ GET LOCATION (User fetches)
+exports.getBusLocation = async (req, res) => {
+  try {
+    const bus = await Bus.findById(req.params.busId);
+    if (!bus) return res.status(404).json({ error: "Bus not found" });
+    res.json({ success: true, location: bus.location });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 // ✅ UPDATE LOCATION (Driver sends GPS)
 exports.updateBusLocation = async (req, res) => {
   try {
