@@ -2,151 +2,150 @@ const Booking = require("../models/bookingModel");
 const Bus = require("../models/busModel");
 const nodemailer = require("nodemailer");
 
-// Email configuration
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER || 'your-email@gmail.com',
-    pass: process.env.EMAIL_PASS || 'your-app-password'
-  }
-});
+// ── Nodemailer transporter (Gmail SMTP + App Password) ──
+const createTransporter = () =>
+  nodemailer.createTransport({
+    host: "smtp.gmail.com",
+    port: 587,
+    secure: false,
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
+  });
 
-// Generate ticket HTML
-const generateTicketHTML = (booking) => {
-  const seatItems = booking.selectedSeats.map(s => 
-    `<div style="background: #d84e55; color: white; padding: 6px 14px; border-radius: 6px; font-size: 14px; font-weight: 600; display: inline-block; margin: 2px;">Seat ${s.seatNumber}</div>`
-  ).join('');
-  
-  return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>Bus Ticket - ${booking.bookingId}</title>
-      <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f0f0; padding: 20px; }
-        .ticket { background: white; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); overflow: hidden; max-width: 600px; margin: 0 auto; }
-        .ticket-header { background: #1a1a2e; color: white; padding: 24px 30px; display: flex; justify-content: space-between; align-items: center; }
-        .ticket-header h1 { font-size: 24px; font-weight: 600; }
-        .booking-id { text-align: right; }
-        .booking-id .label { font-size: 11px; opacity: 0.7; }
-        .booking-id .id { font-size: 18px; font-weight: 700; margin-top: 4px; }
-        .ticket-body { padding: 30px; }
-        .route-section { background: #f8f9fa; border-radius: 10px; padding: 20px; margin-bottom: 25px; }
-        .route-display { display: flex; justify-content: space-between; align-items: center; }
-        .route-point { text-align: center; }
-        .route-point .city { font-size: 22px; font-weight: 700; color: #1a1a2e; }
-        .route-point .time { font-size: 14px; color: #6c757d; }
-        .route-arrow { font-size: 24px; color: #d84e55; font-weight: 600; }
-        .info-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-bottom: 25px; }
-        .info-card { background: #f8f9fa; padding: 15px; border-radius: 8px; }
-        .info-card-title { font-size: 11px; text-transform: uppercase; color: #6c757d; font-weight: 600; margin-bottom: 12px; }
-        .info-row { display: flex; justify-content: space-between; margin-bottom: 8px; }
-        .info-label { font-size: 12px; color: #6c757d; }
-        .info-value { font-size: 14px; font-weight: 600; color: #1a1a2e; }
-        .seats-section { background: #f8f9fa; border-radius: 10px; padding: 20px; margin-bottom: 25px; }
-        .seats-title { font-size: 13px; font-weight: 600; color: #6c757d; margin-bottom: 12px; }
-      </style>
-    </head>
-    <body>
-      <div class="ticket">
-        <div class="ticket-header">
-          <div><h1>E-TICKET</h1><p>Bus Ticket Confirmation</p></div>
-          <div class="booking-id">
-            <div class="label">BOOKING ID</div>
-            <div class="id">${booking.bookingId}</div>
-          </div>
-        </div>
-        <div class="ticket-body">
-          <div class="route-section">
-            <div class="route-display">
-              <div class="route-point"><div class="city">${booking.from}</div><div class="time">${booking.departureTime}</div></div>
-              <div class="route-arrow">→</div>
-              <div class="route-point"><div class="city">${booking.to}</div><div class="time">${booking.arrivalTime}</div></div>
-            </div>
-          </div>
-          <div class="info-grid">
-            <div class="info-card">
-              <div class="info-card-title">BUS INFORMATION</div>
-              <div class="info-row"><span class="info-label">Bus Name</span><span class="info-value">${booking.busName}</span></div>
-              <div class="info-row"><span class="info-label">Travel Date</span><span class="info-value">${new Date(booking.travelDate).toLocaleDateString()}</span></div>
-            </div>
-            <div class="info-card">
-              <div class="info-card-title">PAYMENT DETAILS</div>
-              <div class="info-row"><span class="info-label">Total Amount</span><span class="info-value">₹${booking.totalAmount}</span></div>
-              <div class="info-row"><span class="info-label">Payment Mode</span><span class="info-value">${booking.paymentMethod.toUpperCase()}</span></div>
-            </div>
-          </div>
-          <div class="seats-section">
-            <div class="seats-title">SEAT ALLOCATION</div>
-            <div>${seatItems}</div>
-            <div style="margin-top:12px;font-size:12px;color:#6c757d;">Total Seats: ${booking.selectedSeats.length}</div>
-          </div>
-          <div class="info-card">
-            <div class="info-card-title">PASSENGER INFORMATION</div>
-            <div class="info-row"><span class="info-label">Name</span><span class="info-value">${booking.passengers[0]?.name}</span></div>
-            <div class="info-row"><span class="info-label">Email</span><span class="info-value">${booking.passengers[0]?.email}</span></div>
-            <div class="info-row"><span class="info-label">Phone</span><span class="info-value">${booking.passengers[0]?.phone}</span></div>
-          </div>
+// ── Build full HTML ticket email ──
+const buildTicketHTML = (booking) => {
+  const p = booking.passengers[0] || {};
+  const seats = booking.selectedSeats
+    .map(
+      (s) =>
+        `<span style="background:#d84e55;color:#fff;padding:5px 14px;border-radius:6px;font-size:13px;font-weight:600;display:inline-block;margin:3px;">Seat ${s.seatNumber}</span>`
+    )
+    .join(" ");
+
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"/></head>
+<body style="margin:0;padding:20px;background:#f0f0f0;font-family:Segoe UI,Arial,sans-serif;">
+  <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.12);">
+
+    <div style="background:#1a1a2e;color:#fff;padding:24px 30px;">
+      <table style="width:100%;border-collapse:collapse;">
+        <tr>
+          <td><div style="font-size:22px;font-weight:700;">&#127915; E-TICKET</div><div style="font-size:12px;opacity:0.7;margin-top:4px;">Bus Ticket Confirmation</div></td>
+          <td style="text-align:right;"><div style="font-size:11px;opacity:0.7;">BOOKING ID</div><div style="font-size:18px;font-weight:700;margin-top:4px;">${booking.bookingId}</div></td>
+        </tr>
+      </table>
+    </div>
+
+    <div style="padding:24px 30px;">
+
+      <div style="background:#f8f9fa;border-radius:10px;padding:20px;margin-bottom:20px;">
+        <table style="width:100%;border-collapse:collapse;">
+          <tr>
+            <td style="text-align:center;"><div style="font-size:22px;font-weight:800;color:#1a1a2e;">${booking.from}</div><div style="font-size:13px;color:#6c757d;">${booking.departureTime}</div></td>
+            <td style="text-align:center;font-size:26px;color:#d84e55;font-weight:700;">&#8594;</td>
+            <td style="text-align:center;"><div style="font-size:22px;font-weight:800;color:#1a1a2e;">${booking.to}</div><div style="font-size:13px;color:#6c757d;">${booking.arrivalTime}</div></td>
+          </tr>
+        </table>
+        <div style="margin-top:12px;padding-top:12px;border-top:1px dashed #dee2e6;font-size:13px;color:#6c757d;text-align:center;">
+          &#128197; Travel Date: <strong>${new Date(booking.travelDate).toLocaleDateString("en-IN")}</strong>
         </div>
       </div>
-    </body>
-    </html>
-  `;
+
+      <table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
+        <tr>
+          <td style="width:50%;padding-right:8px;vertical-align:top;">
+            <div style="background:#f8f9fa;border-radius:8px;padding:16px;">
+              <div style="font-size:11px;text-transform:uppercase;color:#6c757d;font-weight:600;margin-bottom:10px;">BUS INFORMATION</div>
+              <div style="font-size:13px;margin-bottom:6px;"><span style="color:#6c757d;">Bus Name</span><br/><strong>${booking.busName}</strong></div>
+              <div style="font-size:13px;"><span style="color:#6c757d;">Travel Date</span><br/><strong>${new Date(booking.travelDate).toLocaleDateString("en-IN")}</strong></div>
+            </div>
+          </td>
+          <td style="width:50%;padding-left:8px;vertical-align:top;">
+            <div style="background:#f8f9fa;border-radius:8px;padding:16px;">
+              <div style="font-size:11px;text-transform:uppercase;color:#6c757d;font-weight:600;margin-bottom:10px;">PAYMENT</div>
+              <div style="font-size:13px;margin-bottom:6px;"><span style="color:#6c757d;">Total Amount</span><br/><strong style="color:#d84e55;font-size:18px;">&#8377;${booking.totalAmount}</strong></div>
+              <div style="font-size:13px;"><span style="color:#6c757d;">Payment Mode</span><br/><strong>${booking.paymentMethod.toUpperCase()}</strong></div>
+            </div>
+          </td>
+        </tr>
+      </table>
+
+      <div style="background:#f8f9fa;border-radius:8px;padding:16px;margin-bottom:20px;">
+        <div style="font-size:11px;text-transform:uppercase;color:#6c757d;font-weight:600;margin-bottom:10px;">SEAT ALLOCATION</div>
+        <div>${seats}</div>
+        <div style="margin-top:10px;font-size:12px;color:#6c757d;">Total Seats: ${booking.selectedSeats.length}</div>
+      </div>
+
+      <div style="background:#f8f9fa;border-radius:8px;padding:16px;margin-bottom:20px;">
+        <div style="font-size:11px;text-transform:uppercase;color:#6c757d;font-weight:600;margin-bottom:10px;">PASSENGER INFORMATION</div>
+        <table style="width:100%;border-collapse:collapse;">
+          <tr><td style="font-size:13px;color:#6c757d;padding:4px 0;">Name</td><td style="font-size:13px;font-weight:600;text-align:right;">${p.name || "N/A"}</td></tr>
+          <tr><td style="font-size:13px;color:#6c757d;padding:4px 0;">Email</td><td style="font-size:13px;font-weight:600;text-align:right;">${p.email || "N/A"}</td></tr>
+          <tr><td style="font-size:13px;color:#6c757d;padding:4px 0;">Phone</td><td style="font-size:13px;font-weight:600;text-align:right;">${p.phone || "N/A"}</td></tr>
+          <tr><td style="font-size:13px;color:#6c757d;padding:4px 0;">Gender</td><td style="font-size:13px;font-weight:600;text-align:right;">${p.gender || "N/A"}</td></tr>
+        </table>
+      </div>
+
+      <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:14px;font-size:12px;color:#856404;">
+        <strong>Important:</strong> Carry a valid government ID &nbsp;|&nbsp; Report 30 mins before departure &nbsp;|&nbsp; Show this ticket at boarding
+      </div>
+    </div>
+
+    <div style="background:#f8f9fa;padding:14px 30px;text-align:center;font-size:11px;color:#6c757d;border-top:1px solid #e9ecef;">
+      Thank you for choosing <strong>Raj Mudra Travels</strong> &#128652;
+    </div>
+  </div>
+</body>
+</html>`;
 };
 
-// Send ticket email
+// ── Send ticket email via Gmail SMTP ──
 const sendTicketEmail = async (booking) => {
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+    console.log("EMAIL_USER / EMAIL_PASS not set in .env — skipping email.");
+    return;
+  }
+  const passenger = booking.passengers[0];
+  if (!passenger?.email) {
+    console.log("No passenger email found — skipping email.");
+    return;
+  }
   try {
-    const ticketHTML = generateTicketHTML(booking);
-    
-    const mailOptions = {
-      from: process.env.EMAIL_USER || 'your-email@gmail.com',
-      to: booking.passengers[0]?.email,
-      subject: `Bus Ticket Confirmation - ${booking.bookingId}`,
-      html: ticketHTML
-    };
-    
-    await transporter.sendMail(mailOptions);
-    console.log('Ticket email sent successfully');
-  } catch (error) {
-    console.error('Error sending ticket email:', error);
+    const transporter = createTransporter();
+    await transporter.sendMail({
+      from: `"Raj Mudra Travels" <${process.env.EMAIL_USER}>`,
+      to: passenger.email,
+      subject: `Booking Confirmed! ${booking.bookingId} | ${booking.from} to ${booking.to}`,
+      html: buildTicketHTML(booking),
+    });
+    console.log(`Ticket email sent to ${passenger.email}`);
+  } catch (err) {
+    console.error("Email send failed:", err.message);
   }
 };
 
-// Generate unique booking ID
-const generateBookingId = () => {
-  return 'BK' + Date.now().toString(36) + Math.random().toString(36).substr(2, 6).toUpperCase();
-};
+// ── Generate unique booking ID ──
+const generateBookingId = () =>
+  "BK" + Date.now().toString(36) + Math.random().toString(36).substr(2, 6).toUpperCase();
 
-// Create new booking
+// ── Create new booking ──
 exports.createBooking = async (req, res) => {
   try {
     const {
-      busId,
-      selectedSeats,
-      passengers,
-      totalAmount,
-      paymentMethod,
-      travelDate,
-      busName,
-      from,
-      to,
-      departureTime,
-      arrivalTime,
-      boardingPoint,
-      droppingPoint,
+      busId, selectedSeats, passengers, totalAmount, paymentMethod,
+      travelDate, busName, from, to, departureTime, arrivalTime,
+      boardingPoint, droppingPoint,
     } = req.body;
 
-    // Try to find bus for extra info, but don't fail if not found
     let bus = null;
     try {
-      if (busId && busId.match(/^[0-9a-fA-F]{24}$/)) {
-        bus = await Bus.findById(busId);
-      }
+      if (busId && busId.match(/^[0-9a-fA-F]{24}$/)) bus = await Bus.findById(busId);
     } catch {}
 
-    const bookingId = generateBookingId();
+    const bookingId = req.body.bookingId || generateBookingId();
     const booking = new Booking({
       userId: req.body.userId || req.user?.id || null,
       bookingId,
@@ -157,10 +156,10 @@ exports.createBooking = async (req, res) => {
       travelDate: travelDate ? new Date(travelDate) : new Date(),
       departureTime: bus?.departureTime || departureTime || "",
       arrivalTime: bus?.arrivalTime || arrivalTime || "",
-      selectedSeats: selectedSeats.map(seat => ({
+      selectedSeats: selectedSeats.map((seat) => ({
         seatNumber: seat.seatNumber,
         seatId: seat.id,
-        price: bus?.price || (totalAmount / selectedSeats.length)
+        price: bus?.price || totalAmount / selectedSeats.length,
       })),
       boardingPoint: boardingPoint || null,
       droppingPoint: droppingPoint || null,
@@ -168,239 +167,139 @@ exports.createBooking = async (req, res) => {
       totalAmount,
       paymentMethod,
       paymentStatus: "completed",
-      bookingStatus: "confirmed"
+      bookingStatus: "confirmed",
     });
 
     await booking.save();
-
-    // Send ticket email
     await sendTicketEmail(booking);
 
     res.status(201).json({
       success: true,
-      message: "Booking confirmed successfully. Ticket sent to your email.",
-      data: { bookingId: booking.bookingId, booking }
+      message: "Booking confirmed. Ticket sent to your email.",
+      data: { bookingId: booking.bookingId, booking },
     });
-
   } catch (error) {
     console.error(error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// Get booking by ID
+// ── Get booking by ID ──
 exports.getBooking = async (req, res) => {
   try {
-    const { bookingId } = req.params;
-    const booking = await Booking.findOne({ bookingId }).populate('busId');
-    
-    if (!booking) {
-      return res.status(404).json({ success: false, message: "Booking not found" });
-    }
-    
+    const booking = await Booking.findOne({ bookingId: req.params.bookingId }).populate("busId");
+    if (!booking) return res.status(404).json({ success: false, message: "Booking not found" });
     res.json({ success: true, data: booking });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// Get all bookings for a user (by email or phone)
+// ── Get user bookings ──
 exports.getUserBookings = async (req, res) => {
   try {
-    const userId = req.user.id;
-
-    const bookings = await Booking.find({ userId })
-      .sort({ createdAt: -1 });
-
+    const bookings = await Booking.find({ userId: req.user.id }).sort({ createdAt: -1 });
     res.json({ success: true, data: bookings });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// Cancel booking
+// ── Cancel booking ──
 exports.cancelBooking = async (req, res) => {
   try {
-    const { bookingId } = req.params;
-    
-    const booking = await Booking.findOne({ bookingId });
-    if (!booking) {
-      return res.status(404).json({ success: false, message: "Booking not found" });
-    }
-    
-    // Update booking status
-    booking.bookingStatus = 'cancelled';
+    const booking = await Booking.findOne({ bookingId: req.params.bookingId });
+    if (!booking) return res.status(404).json({ success: false, message: "Booking not found" });
+    booking.bookingStatus = "cancelled";
     await booking.save();
-    
-    // Free up seats in bus
     const bus = await Bus.findById(booking.busId);
-    if (bus && bus.seatLayout) {
+    if (bus?.seatLayout) {
       for (const seat of booking.selectedSeats) {
-        const seatIndex = bus.seatLayout.findIndex(s => s.seatNumber === seat.seatNumber);
-        if (seatIndex !== -1) {
-          bus.seatLayout[seatIndex].status = 'available';
-          bus.seatLayout[seatIndex].bookedBy = null;
-          bus.seatLayout[seatIndex].bookedAt = null;
-        }
+        const idx = bus.seatLayout.findIndex((s) => s.seatNumber === seat.seatNumber);
+        if (idx !== -1) { bus.seatLayout[idx].status = "available"; bus.seatLayout[idx].bookedBy = null; }
       }
       await bus.save();
     }
-    
     res.json({ success: true, message: "Booking cancelled successfully" });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// Get seat availability for a bus
+// ── Get seat availability ──
 exports.getSeatAvailability = async (req, res) => {
   try {
-    const { busId } = req.params;
-    
-    const bus = await Bus.findById(busId);
-    if (!bus) {
-      return res.status(404).json({ success: false, message: "Bus not found" });
-    }
-    
+    const bus = await Bus.findById(req.params.busId);
+    if (!bus) return res.status(404).json({ success: false, message: "Bus not found" });
     const layout = bus.seatLayout || [];
-    const type = (bus.busType || '').toLowerCase();
-    const hasDecks = type.includes('sleeper') || type.includes('semi');
-
+    const type = (bus.busType || "").toLowerCase();
+    const hasDecks = type.includes("sleeper") || type.includes("semi");
     res.json({
       success: true,
       data: {
-        totalSeats: bus.seats || 40,
-        busType: bus.busType,
-        hasDecks,
-        lowerDeck: hasDecks ? layout.filter(s => s.deckType === 'lower') : [],
-        upperDeck: hasDecks ? layout.filter(s => s.deckType === 'upper') : [],
+        totalSeats: bus.seats || 40, busType: bus.busType, hasDecks,
+        lowerDeck: hasDecks ? layout.filter((s) => s.deckType === "lower") : [],
+        upperDeck: hasDecks ? layout.filter((s) => s.deckType === "upper") : [],
         seatLayout: layout,
-        availableSeats: layout.filter(s => s.status === 'available').length,
-        bookedSeats: layout.filter(s => s.status === 'booked').length,
-      }
+        availableSeats: layout.filter((s) => s.status === "available").length,
+        bookedSeats: layout.filter((s) => s.status === "booked").length,
+      },
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// Helper: generate seat layout based on bus type
-const generateSeatLayout = (totalSeats, busType = '') => {
-  const type = busType.toLowerCase();
-  const isSleeper = type.includes('sleeper');
-  const isSemiSleeper = type.includes('semi');
-  const seatLayout = [];
-
-  if (isSleeper) {
-    // Full sleeper: split equally into lower and upper deck
-    // Lower deck: seats 1 to half, Upper deck: rest
-    const halfSeats = Math.ceil(totalSeats / 2);
-    for (let i = 1; i <= totalSeats; i++) {
-      const deck = i <= halfSeats ? 'lower' : 'upper';
-      seatLayout.push({
-        seatNumber: `${i}`,
-        status: 'available',
-        isHandicap: false,
-        deckType: deck,
-        seatType: 'sleeper'
-      });
-    }
-  } else if (isSemiSleeper) {
-    // Semi-sleeper: lower deck = seater, upper deck = sleeper
-    const seaterCount = Math.ceil(totalSeats * 0.6); // 60% seater (lower)
-    for (let i = 1; i <= totalSeats; i++) {
-      const isLower = i <= seaterCount;
-      seatLayout.push({
-        seatNumber: `${i}`,
-        status: 'available',
-        isHandicap: (i <= 2), // first 2 seats handicap on lower
-        deckType: isLower ? 'lower' : 'upper',
-        seatType: isLower ? 'seater' : 'sleeper'
-      });
-    }
-  } else {
-    // Regular seater: single deck, 2+2 layout
-    const seatsPerRow = 4;
-    for (let i = 0; i < totalSeats; i++) {
-      const row = Math.floor(i / seatsPerRow);
-      const col = i % seatsPerRow;
-      seatLayout.push({
-        seatNumber: `${i + 1}`,
-        status: 'available',
-        isHandicap: (row === 0 && (col === 2 || col === 3)),
-        deckType: 'single',
-        seatType: 'seater'
-      });
-    }
-  }
-  return seatLayout;
-};
-
-// Initialize seat layout for a bus
+// ── Initialize seat layout ──
 exports.initializeSeatLayout = async (req, res) => {
   try {
-    const { busId } = req.params;
+    const bus = await Bus.findById(req.params.busId);
+    if (!bus) return res.status(404).json({ success: false, message: "Bus not found" });
     const { totalSeats } = req.body;
-    
-    const bus = await Bus.findById(busId);
-    if (!bus) {
-      return res.status(404).json({ success: false, message: "Bus not found" });
+    const type = (bus.busType || "").toLowerCase();
+    const isSleeper = type.includes("sleeper");
+    const isSemi = type.includes("semi");
+    const layout = [];
+    if (isSleeper) {
+      const half = Math.ceil(totalSeats / 2);
+      for (let i = 1; i <= totalSeats; i++)
+        layout.push({ seatNumber: `${i}`, status: "available", isHandicap: false, deckType: i <= half ? "lower" : "upper", seatType: "sleeper" });
+    } else if (isSemi) {
+      const sc = Math.ceil(totalSeats * 0.6);
+      for (let i = 1; i <= totalSeats; i++)
+        layout.push({ seatNumber: `${i}`, status: "available", isHandicap: i <= 2, deckType: i <= sc ? "lower" : "upper", seatType: i <= sc ? "seater" : "sleeper" });
+    } else {
+      for (let i = 0; i < totalSeats; i++)
+        layout.push({ seatNumber: `${i + 1}`, status: "available", isHandicap: false, deckType: "single", seatType: "seater" });
     }
-    
-    const seatLayout = generateSeatLayout(totalSeats, bus.busType);
-    bus.seatLayout = seatLayout;
-    bus.seats = totalSeats;
+    bus.seatLayout = layout; bus.seats = totalSeats;
     await bus.save();
-    
-    res.json({
-      success: true,
-      message: "Seat layout initialized successfully",
-      data: { seatLayout, busType: bus.busType }
-    });
-
+    res.json({ success: true, message: "Seat layout initialized", data: { seatLayout: layout } });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// Hold seats temporarily (for 10 minutes)
+// ── Hold seats temporarily ──
 exports.holdSeats = async (req, res) => {
   try {
     const { busId, seats } = req.body;
-    
     const bus = await Bus.findById(busId);
     if (!bus) return res.status(404).json({ success: false, message: "Bus not found" });
-    
-    const heldSeats = [];
-    for (const seatNumber of seats) {
-      const seat = bus.seatLayout?.find(s => s.seatNumber === seatNumber);
-      if (seat && seat.status === 'available') {
-        seat.status = 'selected';
-        heldSeats.push(seatNumber);
-      }
+    const held = [];
+    for (const sn of seats) {
+      const seat = bus.seatLayout?.find((s) => s.seatNumber === sn);
+      if (seat?.status === "available") { seat.status = "selected"; held.push(sn); }
     }
-    
     await bus.save();
-    
-    // Release seats after 10 minutes
     setTimeout(async () => {
-      const updatedBus = await Bus.findById(busId);
-      if (updatedBus && updatedBus.seatLayout) {
-        for (const seatNumber of heldSeats) {
-          const seat = updatedBus.seatLayout.find(s => s.seatNumber === seatNumber);
-          if (seat && seat.status === 'selected') {
-            seat.status = 'available';
-          }
-        }
-        await updatedBus.save();
+      const b = await Bus.findById(busId);
+      if (b?.seatLayout) {
+        for (const sn of held) { const s = b.seatLayout.find((x) => x.seatNumber === sn); if (s?.status === "selected") s.status = "available"; }
+        await b.save();
       }
     }, 10 * 60 * 1000);
-    
-    res.json({
-      success: true,
-      message: `Seats ${heldSeats.join(', ')} held for 10 minutes`,
-      data: { heldSeats }
-    });
+    res.json({ success: true, message: `Seats held for 10 minutes`, data: { heldSeats: held } });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
