@@ -248,11 +248,25 @@ exports.getSeatStatus = async (req, res) => {
     const totalSeats = bus.seats || 40;
     const bookedSeats = seatStatus?.bookedSeats || [];
     
+    // Build seat details with gender info from seatLayout
+    const seatDetails = {};
+    if (bus.seatLayout && bus.seatLayout.length > 0) {
+      bus.seatLayout.forEach(seat => {
+        if (seat.status === 'booked' && seat.bookedByGender) {
+          seatDetails[seat.seatNumber] = {
+            gender: seat.bookedByGender,
+            bookedAt: seat.bookedAt
+          };
+        }
+      });
+    }
+    
     res.json({
       success: true,
       data: {
         totalSeats,
         bookedSeats,
+        seatDetails,
         availableSeats: totalSeats - bookedSeats.length
       }
     });
