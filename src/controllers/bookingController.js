@@ -1,5 +1,118 @@
 const Booking = require("../models/bookingModel");
 const Bus = require("../models/busModel");
+const nodemailer = require("nodemailer");
+
+// Email configuration
+const transporter = nodemailer.createTransporter({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER || 'your-email@gmail.com',
+    pass: process.env.EMAIL_PASS || 'your-app-password'
+  }
+});
+
+// Generate ticket HTML
+const generateTicketHTML = (booking) => {
+  const seatItems = booking.selectedSeats.map(s => 
+    `<div style="background: #d84e55; color: white; padding: 6px 14px; border-radius: 6px; font-size: 14px; font-weight: 600; display: inline-block; margin: 2px;">Seat ${s.seatNumber}</div>`
+  ).join('');
+  
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Bus Ticket - ${booking.bookingId}</title>
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f0f0; padding: 20px; }
+        .ticket { background: white; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); overflow: hidden; max-width: 600px; margin: 0 auto; }
+        .ticket-header { background: #1a1a2e; color: white; padding: 24px 30px; display: flex; justify-content: space-between; align-items: center; }
+        .ticket-header h1 { font-size: 24px; font-weight: 600; }
+        .booking-id { text-align: right; }
+        .booking-id .label { font-size: 11px; opacity: 0.7; }
+        .booking-id .id { font-size: 18px; font-weight: 700; margin-top: 4px; }
+        .ticket-body { padding: 30px; }
+        .route-section { background: #f8f9fa; border-radius: 10px; padding: 20px; margin-bottom: 25px; }
+        .route-display { display: flex; justify-content: space-between; align-items: center; }
+        .route-point { text-align: center; }
+        .route-point .city { font-size: 22px; font-weight: 700; color: #1a1a2e; }
+        .route-point .time { font-size: 14px; color: #6c757d; }
+        .route-arrow { font-size: 24px; color: #d84e55; font-weight: 600; }
+        .info-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-bottom: 25px; }
+        .info-card { background: #f8f9fa; padding: 15px; border-radius: 8px; }
+        .info-card-title { font-size: 11px; text-transform: uppercase; color: #6c757d; font-weight: 600; margin-bottom: 12px; }
+        .info-row { display: flex; justify-content: space-between; margin-bottom: 8px; }
+        .info-label { font-size: 12px; color: #6c757d; }
+        .info-value { font-size: 14px; font-weight: 600; color: #1a1a2e; }
+        .seats-section { background: #f8f9fa; border-radius: 10px; padding: 20px; margin-bottom: 25px; }
+        .seats-title { font-size: 13px; font-weight: 600; color: #6c757d; margin-bottom: 12px; }
+      </style>
+    </head>
+    <body>
+      <div class="ticket">
+        <div class="ticket-header">
+          <div><h1>E-TICKET</h1><p>Bus Ticket Confirmation</p></div>
+          <div class="booking-id">
+            <div class="label">BOOKING ID</div>
+            <div class="id">${booking.bookingId}</div>
+          </div>
+        </div>
+        <div class="ticket-body">
+          <div class="route-section">
+            <div class="route-display">
+              <div class="route-point"><div class="city">${booking.from}</div><div class="time">${booking.departureTime}</div></div>
+              <div class="route-arrow">→</div>
+              <div class="route-point"><div class="city">${booking.to}</div><div class="time">${booking.arrivalTime}</div></div>
+            </div>
+          </div>
+          <div class="info-grid">
+            <div class="info-card">
+              <div class="info-card-title">BUS INFORMATION</div>
+              <div class="info-row"><span class="info-label">Bus Name</span><span class="info-value">${booking.busName}</span></div>
+              <div class="info-row"><span class="info-label">Travel Date</span><span class="info-value">${new Date(booking.travelDate).toLocaleDateString()}</span></div>
+            </div>
+            <div class="info-card">
+              <div class="info-card-title">PAYMENT DETAILS</div>
+              <div class="info-row"><span class="info-label">Total Amount</span><span class="info-value">₹${booking.totalAmount}</span></div>
+              <div class="info-row"><span class="info-label">Payment Mode</span><span class="info-value">${booking.paymentMethod.toUpperCase()}</span></div>
+            </div>
+          </div>
+          <div class="seats-section">
+            <div class="seats-title">SEAT ALLOCATION</div>
+            <div>${seatItems}</div>
+            <div style="margin-top:12px;font-size:12px;color:#6c757d;">Total Seats: ${booking.selectedSeats.length}</div>
+          </div>
+          <div class="info-card">
+            <div class="info-card-title">PASSENGER INFORMATION</div>
+            <div class="info-row"><span class="info-label">Name</span><span class="info-value">${booking.passengers[0]?.name}</span></div>
+            <div class="info-row"><span class="info-label">Email</span><span class="info-value">${booking.passengers[0]?.email}</span></div>
+            <div class="info-row"><span class="info-label">Phone</span><span class="info-value">${booking.passengers[0]?.phone}</span></div>
+          </div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+};
+
+// Send ticket email
+const sendTicketEmail = async (booking) => {
+  try {
+    const ticketHTML = generateTicketHTML(booking);
+    
+    const mailOptions = {
+      from: process.env.EMAIL_USER || 'your-email@gmail.com',
+      to: booking.passengers[0]?.email,
+      subject: `Bus Ticket Confirmation - ${booking.bookingId}`,
+      html: ticketHTML
+    };
+    
+    await transporter.sendMail(mailOptions);
+    console.log('Ticket email sent successfully');
+  } catch (error) {
+    console.error('Error sending ticket email:', error);
+  }
+};
 
 // Generate unique booking ID
 const generateBookingId = () => {
@@ -21,6 +134,8 @@ exports.createBooking = async (req, res) => {
       to,
       departureTime,
       arrivalTime,
+      boardingPoint,
+      droppingPoint,
     } = req.body;
 
     // Try to find bus for extra info, but don't fail if not found
@@ -47,6 +162,8 @@ exports.createBooking = async (req, res) => {
         seatId: seat.id,
         price: bus?.price || (totalAmount / selectedSeats.length)
       })),
+      boardingPoint: boardingPoint || null,
+      droppingPoint: droppingPoint || null,
       passengers: [passengers],
       totalAmount,
       paymentMethod,
@@ -56,9 +173,12 @@ exports.createBooking = async (req, res) => {
 
     await booking.save();
 
+    // Send ticket email
+    await sendTicketEmail(booking);
+
     res.status(201).json({
       success: true,
-      message: "Booking confirmed successfully",
+      message: "Booking confirmed successfully. Ticket sent to your email.",
       data: { bookingId: booking.bookingId, booking }
     });
 

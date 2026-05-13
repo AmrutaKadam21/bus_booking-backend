@@ -23,6 +23,16 @@ const bookingSchema = new mongoose.Schema({
     seatId: Number,
     price: Number
   }],
+  boardingPoint: {
+    name: String,
+    time: String,
+    address: String
+  },
+  droppingPoint: {
+    name: String,
+    time: String,
+    address: String
+  },
   userId: {
   type: mongoose.Schema.Types.ObjectId,
   ref: "User",

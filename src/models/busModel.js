@@ -9,9 +9,10 @@ const seatSchema = new mongoose.Schema({
     default: 'available'
   },
   isHandicap: { type: Boolean, default: false },
-  deckType: { type: String, enum: ['lower', 'upper', 'single'], default: 'single' }, // lower/upper for sleeper, single for seater
+  deckType: { type: String, enum: ['lower', 'upper', 'single'], default: 'single' },
   seatType: { type: String, enum: ['seater', 'sleeper'], default: 'seater' },
   bookedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Booking' },
+  bookedByGender: { type: String, enum: ['male', 'female', 'other'] },
   bookedAt: Date,
 });
 
@@ -28,8 +29,16 @@ const busSchema = new mongoose.Schema({
   rating: Number,
   ratingsCount: Number,
   amenities: [String],
-  boardingPoints: [String],
-  droppingPoints: [String],
+  boardingPoints: [{
+    name: String,
+    time: String,
+    address: String
+  }],
+  droppingPoints: [{
+    name: String,
+    time: String,
+    address: String
+  }],
   travelDurationMins: Number,
   busType: String,
 availableSeats: Number, 

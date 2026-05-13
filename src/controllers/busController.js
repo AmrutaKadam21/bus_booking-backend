@@ -1,4 +1,5 @@
 const Bus = require("../models/busModel");
+const BusSeatStatus = require("../models/BusSeatStatus");
 
 
 exports.deleteBusById = async (req, res) => {
@@ -70,13 +71,54 @@ exports.searchBuses = async (req, res) => {
     const { origin, destination, date } = req.query;
 
     const buses = await Bus.find({
-      originCity: origin,
-      destinationCity: destination,
+      $or: [
+        { from: origin, to: destination },
+        { originCity: origin, destinationCity: destination }
+      ]
     });
+
+    // Get seat availability for each bus
+    const busesWithAvailability = await Promise.all(
+      buses.map(async (bus) => {
+        try {
+          const seatStatus = await BusSeatStatus.findOne({
+            busId: bus._id,
+            date: date || new Date().toISOString().split('T')[0]
+          });
+          
+          const totalSeats = bus.seats || 40;
+          const bookedSeats = seatStatus?.bookedSeats || [];
+          const availableSeats = totalSeats - bookedSeats.length;
+          
+          return {
+            ...bus.toObject(),
+            availableSeats,
+            bookedSeats: bookedSeats.length,
+            totalSeats,
+            searchDate: date // Include search date for frontend time filtering
+          };
+        } catch {
+          return {
+            ...bus.toObject(),
+            availableSeats: bus.seats || 40,
+            bookedSeats: 0,
+            totalSeats: bus.seats || 40,
+            searchDate: date
+          };
+        }
+      })
+    );
 
     res.json({
       success: true,
-      data: buses,
+      data: busesWithAvailability,
+      searchInfo: {
+        origin,
+        destination,
+        date,
+        totalBuses: busesWithAvailability.length,
+        message: "Time filtering applied on frontend for same-day searches"
+      }
     });
 
   } catch (error) {
@@ -176,14 +218,89 @@ exports.updateBusLocation = async (req, res) => {
   }
 };
 
-// ✅ GET LOCATION (User fetches)
-exports.getBusLocation = async (req, res) => {
+// Get seat status for a specific bus and date
+exports.getSeatStatus = async (req, res) => {
   try {
-    const bus = await Bus.findById(req.params.busId);
-
-    res.json({ success: true, location: bus.location });
-
+    const { busId } = req.params;
+    const { date } = req.query;
+    
+    const bus = await Bus.findById(busId);
+    if (!bus) {
+      return res.status(404).json({ success: false, message: "Bus not found" });
+    }
+    
+    const seatStatus = await BusSeatStatus.findOne({
+      busId,
+      date: date || new Date().toISOString().split('T')[0]
+    });
+    
+    const totalSeats = bus.seats || 40;
+    const bookedSeats = seatStatus?.bookedSeats || [];
+    
+    res.json({
+      success: true,
+      data: {
+        totalSeats,
+        bookedSeats,
+        availableSeats: totalSeats - bookedSeats.length
+      }
+    });
+    
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Book seats for a bus
+exports.bookSeats = async (req, res) => {
+  try {
+    const { busId } = req.params;
+    const { seatNumbers, travelDate, passengerGender } = req.body;
+    
+    const date = travelDate || new Date().toISOString().split('T')[0];
+    
+    // Find the bus to get seat layout
+    const bus = await Bus.findById(busId);
+    if (!bus) {
+      return res.status(404).json({ success: false, message: "Bus not found" });
+    }
+    
+    // Update seat layout with gender information for sleeper buses
+    if (bus.busType && bus.busType.toLowerCase().includes('sleeper') && bus.seatLayout) {
+      for (const seatNumber of seatNumbers) {
+        const seatIndex = bus.seatLayout.findIndex(s => s.seatNumber === seatNumber);
+        if (seatIndex !== -1) {
+          bus.seatLayout[seatIndex].status = 'booked';
+          bus.seatLayout[seatIndex].bookedByGender = passengerGender;
+          bus.seatLayout[seatIndex].bookedAt = new Date();
+        }
+      }
+      await bus.save();
+    }
+    
+    // Also update BusSeatStatus for compatibility
+    let seatStatus = await BusSeatStatus.findOne({ busId, date });
+    
+    if (!seatStatus) {
+      seatStatus = new BusSeatStatus({
+        busId,
+        date,
+        bookedSeats: seatNumbers
+      });
+    } else {
+      const newSeats = seatNumbers.filter(seat => !seatStatus.bookedSeats.includes(seat));
+      seatStatus.bookedSeats.push(...newSeats);
+    }
+    
+    await seatStatus.save();
+    
+    res.json({
+      success: true,
+      message: "Seats booked successfully",
+      data: { bookedSeats: seatStatus.bookedSeats }
+    });
+    
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
   }
 };
