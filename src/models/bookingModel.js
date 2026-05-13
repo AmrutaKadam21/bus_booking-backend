@@ -34,10 +34,10 @@ const bookingSchema = new mongoose.Schema({
     address: String
   },
   userId: {
-  type: mongoose.Schema.Types.ObjectId,
-  ref: "User",
-  required: true,
-},
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    required: false,
+  },
 
   passengers: [passengerSchema],
   totalAmount: { type: Number, required: true },
