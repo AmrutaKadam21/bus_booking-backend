@@ -67,7 +67,19 @@ router.get("/seat-status/:busId", async (req, res) => {
       status = await BusSeatStatus.create({ busId: req.params.busId, travelDate: date, bookedSeats: [] });
     }
 
-    res.json({ totalSeats: bus.seats || 40, bookedSeats: status.bookedSeats, travelDate: date });
+    const seatDetails = {};
+    if (bus.seatLayout && Array.isArray(bus.seatLayout)) {
+      bus.seatLayout.forEach((seat) => {
+        if (seat.status === 'booked' && seat.bookedByGender) {
+          seatDetails[seat.seatNumber] = {
+            gender: seat.bookedByGender,
+            bookedAt: seat.bookedAt,
+          };
+        }
+      });
+    }
+
+    res.json({ totalSeats: bus.seats || 40, bookedSeats: status.bookedSeats, seatDetails, travelDate: date });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -76,20 +88,39 @@ router.get("/seat-status/:busId", async (req, res) => {
 // BOOK seats for a bus on a specific date
 router.post("/book-seats/:busId", async (req, res) => {
   try {
-    const { seatNumbers, travelDate } = req.body;
+    const { seatNumbers, travelDate, passengerGender } = req.body;
     if (!travelDate) return res.status(400).json({ error: "travelDate required (YYYY-MM-DD)" });
+
+    const bus = await Bus.findById(req.params.busId);
+    if (!bus) return res.status(404).json({ error: "Bus not found" });
+
+    // If the bus has a seat layout, update gender metadata there too.
+    if (bus.seatLayout && Array.isArray(bus.seatLayout)) {
+      const updatedSeats = [];
+      for (const seatNumber of seatNumbers) {
+        const seatIndex = bus.seatLayout.findIndex(s => s.seatNumber === seatNumber);
+        if (seatIndex !== -1) {
+          bus.seatLayout[seatIndex].status = 'booked';
+          if (passengerGender) {
+            bus.seatLayout[seatIndex].bookedByGender = passengerGender;
+          }
+          bus.seatLayout[seatIndex].bookedAt = new Date();
+          updatedSeats.push(seatNumber);
+        }
+      }
+      if (updatedSeats.length > 0) {
+        await bus.save();
+      }
+    }
 
     let status = await BusSeatStatus.findOne({ busId: req.params.busId, travelDate });
     if (!status) {
-      status = await BusSeatStatus.create({ busId: req.params.busId, travelDate, bookedSeats: [] });
+      status = new BusSeatStatus({ busId: req.params.busId, travelDate, bookedSeats: seatNumbers });
+    } else {
+      const newSeats = seatNumbers.filter(seat => !status.bookedSeats.includes(seat));
+      status.bookedSeats.push(...newSeats);
     }
 
-    const alreadyBooked = seatNumbers.filter(s => status.bookedSeats.includes(s));
-    if (alreadyBooked.length > 0) {
-      return res.status(400).json({ error: `Seats ${alreadyBooked.join(", ")} already booked for this date` });
-    }
-
-    status.bookedSeats.push(...seatNumbers);
     await status.save();
 
     res.json({ success: true, bookedSeats: status.bookedSeats, travelDate });
