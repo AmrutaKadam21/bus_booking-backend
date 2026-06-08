@@ -53,7 +53,6 @@ router.get("/search-buses", async (req, res) => {
 // ================= SEAT STATUS =================
 
 // GET booked seats for a bus on a specific date
-// Query: /seat-status/:busId?date=2024-03-20
 router.get("/seat-status/:busId", async (req, res) => {
   try {
     const { date } = req.query;
@@ -67,15 +66,11 @@ router.get("/seat-status/:busId", async (req, res) => {
       status = await BusSeatStatus.create({ busId: req.params.busId, travelDate: date, bookedSeats: [] });
     }
 
+    // Build seatDetails from date-specific map (gender per seat per date)
     const seatDetails = {};
-    if (bus.seatLayout && Array.isArray(bus.seatLayout)) {
-      bus.seatLayout.forEach((seat) => {
-        if (seat.status === 'booked' && seat.bookedByGender) {
-          seatDetails[seat.seatNumber] = {
-            gender: seat.bookedByGender,
-            bookedAt: seat.bookedAt,
-          };
-        }
+    if (status.seatDetails) {
+      status.seatDetails.forEach((val, key) => {
+        seatDetails[key] = { gender: val.gender, bookedAt: val.bookedAt };
       });
     }
 
@@ -94,31 +89,19 @@ router.post("/book-seats/:busId", async (req, res) => {
     const bus = await Bus.findById(req.params.busId);
     if (!bus) return res.status(404).json({ error: "Bus not found" });
 
-    // If the bus has a seat layout, update gender metadata there too.
-    if (bus.seatLayout && Array.isArray(bus.seatLayout)) {
-      const updatedSeats = [];
-      for (const seatNumber of seatNumbers) {
-        const seatIndex = bus.seatLayout.findIndex(s => s.seatNumber === seatNumber);
-        if (seatIndex !== -1) {
-          bus.seatLayout[seatIndex].status = 'booked';
-          if (passengerGender) {
-            bus.seatLayout[seatIndex].bookedByGender = passengerGender;
-          }
-          bus.seatLayout[seatIndex].bookedAt = new Date();
-          updatedSeats.push(seatNumber);
-        }
-      }
-      if (updatedSeats.length > 0) {
-        await bus.save();
-      }
-    }
-
     let status = await BusSeatStatus.findOne({ busId: req.params.busId, travelDate });
     if (!status) {
-      status = new BusSeatStatus({ busId: req.params.busId, travelDate, bookedSeats: seatNumbers });
-    } else {
-      const newSeats = seatNumbers.filter(seat => !status.bookedSeats.includes(seat));
-      status.bookedSeats.push(...newSeats);
+      status = new BusSeatStatus({ busId: req.params.busId, travelDate, bookedSeats: [] });
+    }
+
+    for (const seatNumber of seatNumbers) {
+      if (!status.bookedSeats.includes(seatNumber)) {
+        status.bookedSeats.push(seatNumber);
+      }
+      // Store gender per seat per date
+      if (passengerGender) {
+        status.seatDetails.set(seatNumber, { gender: passengerGender, bookedAt: new Date() });
+      }
     }
 
     await status.save();
@@ -139,6 +122,10 @@ router.post("/release-seats/:busId", async (req, res) => {
     if (!status) return res.status(404).json({ error: "Seat status not found" });
 
     status.bookedSeats = status.bookedSeats.filter(s => !seatNumbers.includes(s));
+    // Also remove gender info for released seats
+    for (const seatNumber of seatNumbers) {
+      status.seatDetails.delete(seatNumber);
+    }
     await status.save();
 
     res.json({ success: true, bookedSeats: status.bookedSeats });

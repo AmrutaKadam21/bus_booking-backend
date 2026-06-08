@@ -1,7 +1,8 @@
 const express = require("express");
 const router = express.Router();
-const { submitContact, getContacts } = require("../controllers/contactController");
+const { submitContact, getContacts, getTestimonials } = require("../controllers/contactController");
 
+router.get("/testimonials", getTestimonials);
 router.post("/", submitContact);
 router.get("/", getContacts);
 

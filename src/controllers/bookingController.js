@@ -1,113 +1,162 @@
 const Booking = require("../models/bookingModel");
 const Bus = require("../models/busModel");
-const { Resend } = require("resend");
+const nodemailer = require("nodemailer");
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// ── Gmail transporter ──
+const createTransporter = () => nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.GMAIL_USER,
+    pass: process.env.GMAIL_APP_PASSWORD,
+  },
+});
 
 // ── Build full HTML ticket email ──
 const buildTicketHTML = (booking) => {
   const p = booking.passengers[0] || {};
   const seats = booking.selectedSeats
-    .map((s) => `<span style="background:#d84e55;color:#fff;padding:5px 14px;border-radius:6px;font-size:13px;font-weight:600;display:inline-block;margin:3px;">Seat ${s.seatNumber}</span>`)
+    .map((s) => `<span style="background:#d84e55;color:#fff;padding:6px 16px;border-radius:6px;font-size:13px;font-weight:600;display:inline-block;margin:3px;">Seat ${s.seatNumber}</span>`)
     .join(" ");
 
-  // Inline ticket HTML encoded as data URI for the download button
-  const ticketPageHTML = `<!DOCTYPE html><html><head><meta charset='UTF-8'/><title>Ticket ${booking.bookingId}</title><style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:Segoe UI,Arial,sans-serif;background:#f0f0f0;padding:30px 20px;}.ticket{max-width:700px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.12);}.hdr{background:#1a1a2e;color:#fff;padding:22px 28px;display:flex;justify-content:space-between;align-items:center;}.hdr h1{font-size:20px;font-weight:700;}.bid{text-align:right;font-size:11px;opacity:.7;}.bid b{display:block;font-size:17px;font-weight:700;margin-top:3px;}.body{padding:24px 28px;}.route{background:#f8f9fa;border-radius:8px;padding:18px;margin-bottom:18px;text-align:center;}.cities{display:flex;justify-content:space-between;align-items:center;}.city{font-size:20px;font-weight:800;color:#1a1a2e;}.time{font-size:12px;color:#6c757d;margin-top:3px;}.arrow{font-size:24px;color:#d84e55;font-weight:700;}.date{margin-top:10px;padding-top:10px;border-top:1px dashed #dee2e6;font-size:12px;color:#6c757d;}.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px;}.card{background:#f8f9fa;border-radius:8px;padding:14px;}.card-title{font-size:10px;text-transform:uppercase;color:#6c757d;font-weight:600;margin-bottom:8px;}.row{display:flex;justify-content:space-between;margin-bottom:5px;font-size:12px;}.lbl{color:#6c757d;}.val{font-weight:600;color:#1a1a2e;}.seats-box{background:#f8f9fa;border-radius:8px;padding:14px;margin-bottom:18px;}.warn{background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:12px;font-size:11px;color:#856404;}.ftr{background:#f8f9fa;padding:12px 28px;text-align:center;font-size:11px;color:#6c757d;border-top:1px solid #e9ecef;}.print-btn{display:block;margin:20px auto;padding:12px 40px;background:#d84e55;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;}@media print{.print-btn{display:none;}body{background:#fff;padding:0;}}</style></head><body><div class='ticket'><div class='hdr'><div><h1>&#127915; E-TICKET</h1><p style='font-size:11px;opacity:.7;margin-top:3px;'>Bus Ticket Confirmation</p></div><div class='bid'>BOOKING ID<b>${booking.bookingId}</b></div></div><div class='body'><div class='route'><div class='cities'><div><div class='city'>${booking.from}</div><div class='time'>${booking.departureTime}</div></div><div class='arrow'>&#8594;</div><div><div class='city'>${booking.to}</div><div class='time'>${booking.arrivalTime}</div></div></div><div class='date'>&#128197; Travel Date: <b>${new Date(booking.travelDate).toLocaleDateString('en-IN')}</b></div></div><div class='grid'><div class='card'><div class='card-title'>Bus Info</div><div class='row'><span class='lbl'>Bus Name</span><span class='val'>${booking.busName}</span></div><div class='row'><span class='lbl'>Payment</span><span class='val'>${booking.paymentMethod.toUpperCase()}</span></div></div><div class='card'><div class='card-title'>Payment</div><div class='row'><span class='lbl'>Total</span><span class='val' style='color:#d84e55;font-size:16px;'>&#8377;${booking.totalAmount}</span></div><div class='row'><span class='lbl'>Seats</span><span class='val'>${booking.selectedSeats.length}</span></div></div></div><div class='seats-box'><div class='card-title' style='margin-bottom:10px;'>Seat Allocation</div>${booking.selectedSeats.map(s=>`<span style='background:#d84e55;color:#fff;padding:4px 12px;border-radius:5px;font-size:12px;font-weight:600;display:inline-block;margin:2px;'>Seat ${s.seatNumber}</span>`).join(' ')}</div><div class='card' style='margin-bottom:18px;'><div class='card-title'>Passenger Info</div><div class='row'><span class='lbl'>Name</span><span class='val'>${p.name||'N/A'}</span></div><div class='row'><span class='lbl'>Email</span><span class='val'>${p.email||'N/A'}</span></div><div class='row'><span class='lbl'>Phone</span><span class='val'>${p.phone||'N/A'}</span></div><div class='row'><span class='lbl'>Gender</span><span class='val'>${p.gender||'N/A'}</span></div></div><div class='warn'><b>Important:</b> Carry valid govt ID &nbsp;|&nbsp; Report 30 mins early &nbsp;|&nbsp; Show ticket at boarding</div></div><div class='ftr'>Thank you for choosing <b>Raj Mudra Travels</b> &#128652;</div></div><button class='print-btn' onclick='window.print()'>&#128424; Print / Save as PDF</button></body></html>`;
-
-  const encodedTicket = Buffer.from(ticketPageHTML).toString('base64');
-  const downloadLink = `data:text/html;base64,${encodedTicket}`;
+  const frontendUrl = process.env.FRONTEND_URL || "https://bus-booking-frontend.vercel.app";
+  const ticketUrl = `${frontendUrl}/tickets`;
 
   return `<!DOCTYPE html>
 <html>
-<head><meta charset="UTF-8"/></head>
-<body style="margin:0;padding:20px;background:#f0f0f0;font-family:Segoe UI,Arial,sans-serif;">
-  <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.12);">
-    <div style="background:#1a1a2e;color:#fff;padding:24px 30px;">
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/></head>
+<body style="margin:0;padding:0;background:#f0f0f0;font-family:'Segoe UI',Arial,sans-serif;">
+  <div style="max-width:620px;margin:30px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,0.12);">
+
+    <!-- HEADER -->
+    <div style="background:linear-gradient(135deg,#1a1a2e,#16213e);color:#fff;padding:28px 32px;">
       <table style="width:100%;border-collapse:collapse;"><tr>
-        <td><div style="font-size:22px;font-weight:700;">&#127915; E-TICKET</div><div style="font-size:12px;opacity:0.7;margin-top:4px;">Bus Ticket Confirmation</div></td>
-        <td style="text-align:right;"><div style="font-size:11px;opacity:0.7;">BOOKING ID</div><div style="font-size:18px;font-weight:700;margin-top:4px;">${booking.bookingId}</div></td>
+        <td>
+          <div style="font-size:24px;font-weight:800;letter-spacing:1px;">&#127915; E-TICKET</div>
+          <div style="font-size:12px;opacity:0.7;margin-top:4px;">Raj Mudra Travels — Booking Confirmation</div>
+        </td>
+        <td style="text-align:right;">
+          <div style="font-size:10px;opacity:0.6;text-transform:uppercase;letter-spacing:1px;">Booking ID</div>
+          <div style="font-size:20px;font-weight:800;margin-top:4px;color:#f97316;">${booking.bookingId}</div>
+        </td>
       </tr></table>
     </div>
-    <div style="padding:24px 30px;">
-      <div style="background:#f8f9fa;border-radius:10px;padding:20px;margin-bottom:20px;">
-        <table style="width:100%;border-collapse:collapse;"><tr>
-          <td style="text-align:center;"><div style="font-size:22px;font-weight:800;color:#1a1a2e;">${booking.from}</div><div style="font-size:13px;color:#6c757d;">${booking.departureTime}</div></td>
-          <td style="text-align:center;font-size:26px;color:#d84e55;font-weight:700;">&#8594;</td>
-          <td style="text-align:center;"><div style="font-size:22px;font-weight:800;color:#1a1a2e;">${booking.to}</div><div style="font-size:13px;color:#6c757d;">${booking.arrivalTime}</div></td>
-        </tr></table>
-        <div style="margin-top:12px;padding-top:12px;border-top:1px dashed #dee2e6;font-size:13px;color:#6c757d;text-align:center;">&#128197; Travel Date: <strong>${new Date(booking.travelDate).toLocaleDateString('en-IN')}</strong></div>
+
+    <!-- GREETING -->
+    <div style="padding:24px 32px 0;">
+      <p style="font-size:16px;color:#1a1a2e;font-weight:600;margin:0 0 4px;">Hey ${p.name || 'Traveler'}, your trip is confirmed! &#127881;</p>
+      <p style="font-size:13px;color:#6c757d;margin:0;">Here are your booking details. Have a safe journey!</p>
+    </div>
+
+    <!-- ROUTE -->
+    <div style="margin:20px 32px;background:#fff7ed;border-radius:12px;padding:20px;border:1px solid #fed7aa;">
+      <table style="width:100%;border-collapse:collapse;"><tr>
+        <td style="text-align:center;width:40%;">
+          <div style="font-size:24px;font-weight:800;color:#1a1a2e;">${booking.from}</div>
+          <div style="font-size:12px;color:#f97316;font-weight:600;margin-top:4px;">${booking.departureTime}</div>
+        </td>
+        <td style="text-align:center;width:20%;">
+          <div style="font-size:28px;color:#d84e55;font-weight:700;">&#8594;</div>
+        </td>
+        <td style="text-align:center;width:40%;">
+          <div style="font-size:24px;font-weight:800;color:#1a1a2e;">${booking.to}</div>
+          <div style="font-size:12px;color:#f97316;font-weight:600;margin-top:4px;">${booking.arrivalTime}</div>
+        </td>
+      </tr></table>
+      <div style="margin-top:14px;padding-top:14px;border-top:1px dashed #fed7aa;text-align:center;font-size:13px;color:#6c757d;">
+        &#128197; <strong>Travel Date:</strong> ${new Date(booking.travelDate).toLocaleDateString('en-IN', { weekday:'long', year:'numeric', month:'long', day:'numeric' })}
       </div>
-      <table style="width:100%;border-collapse:collapse;margin-bottom:20px;"><tr>
+    </div>
+
+    <!-- INFO GRID -->
+    <div style="padding:0 32px;">
+      <table style="width:100%;border-collapse:collapse;margin-bottom:16px;"><tr>
         <td style="width:50%;padding-right:8px;vertical-align:top;">
-          <div style="background:#f8f9fa;border-radius:8px;padding:16px;">
-            <div style="font-size:11px;text-transform:uppercase;color:#6c757d;font-weight:600;margin-bottom:10px;">BUS INFORMATION</div>
-            <div style="font-size:13px;margin-bottom:6px;"><span style="color:#6c757d;">Bus Name</span><br/><strong>${booking.busName}</strong></div>
-            <div style="font-size:13px;"><span style="color:#6c757d;">Travel Date</span><br/><strong>${new Date(booking.travelDate).toLocaleDateString('en-IN')}</strong></div>
+          <div style="background:#f8f9fa;border-radius:10px;padding:16px;">
+            <div style="font-size:10px;text-transform:uppercase;color:#6c757d;font-weight:700;letter-spacing:1px;margin-bottom:10px;">BUS INFORMATION</div>
+            <div style="font-size:13px;margin-bottom:6px;"><span style="color:#6c757d;">Bus Name</span><br/><strong style="color:#1a1a2e;">${booking.busName}</strong></div>
+            <div style="font-size:13px;"><span style="color:#6c757d;">Bus Type</span><br/><strong style="color:#1a1a2e;">${booking.busType || 'N/A'}</strong></div>
           </div>
         </td>
         <td style="width:50%;padding-left:8px;vertical-align:top;">
-          <div style="background:#f8f9fa;border-radius:8px;padding:16px;">
-            <div style="font-size:11px;text-transform:uppercase;color:#6c757d;font-weight:600;margin-bottom:10px;">PAYMENT</div>
-            <div style="font-size:13px;margin-bottom:6px;"><span style="color:#6c757d;">Total Amount</span><br/><strong style="color:#d84e55;font-size:18px;">&#8377;${booking.totalAmount}</strong></div>
-            <div style="font-size:13px;"><span style="color:#6c757d;">Payment Mode</span><br/><strong>${booking.paymentMethod.toUpperCase()}</strong></div>
+          <div style="background:#f8f9fa;border-radius:10px;padding:16px;">
+            <div style="font-size:10px;text-transform:uppercase;color:#6c757d;font-weight:700;letter-spacing:1px;margin-bottom:10px;">PAYMENT</div>
+            <div style="font-size:13px;margin-bottom:6px;"><span style="color:#6c757d;">Total Paid</span><br/><strong style="color:#d84e55;font-size:20px;">&#8377;${booking.totalAmount}</strong></div>
+            <div style="font-size:13px;"><span style="color:#6c757d;">Payment Mode</span><br/><strong style="color:#1a1a2e;">${booking.paymentMethod.toUpperCase()}</strong></div>
           </div>
         </td>
       </tr></table>
-      <div style="background:#f8f9fa;border-radius:8px;padding:16px;margin-bottom:20px;">
-        <div style="font-size:11px;text-transform:uppercase;color:#6c757d;font-weight:600;margin-bottom:10px;">SEAT ALLOCATION</div>
-        <div>${seats}</div>
-        <div style="margin-top:10px;font-size:12px;color:#6c757d;">Total Seats: ${booking.selectedSeats.length}</div>
-      </div>
-      <div style="background:#f8f9fa;border-radius:8px;padding:16px;margin-bottom:20px;">
-        <div style="font-size:11px;text-transform:uppercase;color:#6c757d;font-weight:600;margin-bottom:10px;">PASSENGER INFORMATION</div>
-        <table style="width:100%;border-collapse:collapse;">
-          <tr><td style="font-size:13px;color:#6c757d;padding:4px 0;">Name</td><td style="font-size:13px;font-weight:600;text-align:right;">${p.name||'N/A'}</td></tr>
-          <tr><td style="font-size:13px;color:#6c757d;padding:4px 0;">Email</td><td style="font-size:13px;font-weight:600;text-align:right;">${p.email||'N/A'}</td></tr>
-          <tr><td style="font-size:13px;color:#6c757d;padding:4px 0;">Phone</td><td style="font-size:13px;font-weight:600;text-align:right;">${p.phone||'N/A'}</td></tr>
-          <tr><td style="font-size:13px;color:#6c757d;padding:4px 0;">Gender</td><td style="font-size:13px;font-weight:600;text-align:right;">${p.gender||'N/A'}</td></tr>
-        </table>
-      </div>
-
-      <!-- Download Ticket Button -->
-      <div style="text-align:center;margin-bottom:20px;">
-        <a href="${downloadLink}" download="ticket-${booking.bookingId}.html"
-          style="display:inline-block;background:linear-gradient(135deg,#d84e55,#b03a40);color:#fff;text-decoration:none;padding:14px 36px;border-radius:10px;font-size:15px;font-weight:700;letter-spacing:0.5px;box-shadow:0 4px 16px rgba(216,78,85,0.4);">
-          &#11015; Download Your Ticket
-        </a>
-        <p style="font-size:11px;color:#9ca3af;margin-top:8px;">Click to download &amp; print your ticket</p>
-      </div>
-
-      <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:14px;font-size:12px;color:#856404;">
-        <strong>Important:</strong> Carry a valid government ID &nbsp;|&nbsp; Report 30 mins before departure &nbsp;|&nbsp; Show this ticket at boarding
-      </div>
     </div>
-    <div style="background:#f8f9fa;padding:14px 30px;text-align:center;font-size:11px;color:#6c757d;border-top:1px solid #e9ecef;">
-      Thank you for choosing <strong>Raj Mudra Travels</strong> &#128652;
+
+    <!-- SEATS -->
+    <div style="margin:0 32px 16px;background:#f8f9fa;border-radius:10px;padding:16px;">
+      <div style="font-size:10px;text-transform:uppercase;color:#6c757d;font-weight:700;letter-spacing:1px;margin-bottom:10px;">SEAT ALLOCATION</div>
+      <div>${seats}</div>
+      <div style="margin-top:10px;font-size:12px;color:#6c757d;">Total Seats: ${booking.selectedSeats.length}</div>
+    </div>
+
+    <!-- PASSENGER -->
+    <div style="margin:0 32px 20px;background:#f8f9fa;border-radius:10px;padding:16px;">
+      <div style="font-size:10px;text-transform:uppercase;color:#6c757d;font-weight:700;letter-spacing:1px;margin-bottom:10px;">PASSENGER INFORMATION</div>
+      <table style="width:100%;border-collapse:collapse;">
+        <tr><td style="font-size:13px;color:#6c757d;padding:4px 0;">Name</td><td style="font-size:13px;font-weight:600;color:#1a1a2e;text-align:right;">${p.name||'N/A'}</td></tr>
+        <tr><td style="font-size:13px;color:#6c757d;padding:4px 0;">Email</td><td style="font-size:13px;font-weight:600;color:#1a1a2e;text-align:right;">${p.email||'N/A'}</td></tr>
+        <tr><td style="font-size:13px;color:#6c757d;padding:4px 0;">Phone</td><td style="font-size:13px;font-weight:600;color:#1a1a2e;text-align:right;">${p.phone||'N/A'}</td></tr>
+        <tr><td style="font-size:13px;color:#6c757d;padding:4px 0;">Gender</td><td style="font-size:13px;font-weight:600;color:#1a1a2e;text-align:right;">${p.gender||'N/A'}</td></tr>
+      </table>
+    </div>
+
+    <!-- DOWNLOAD BUTTON -->
+    <div style="text-align:center;padding:0 32px 28px;">
+      <a href="${ticketUrl}" style="display:inline-block;background:linear-gradient(135deg,#d84e55,#b03a40);color:#fff;text-decoration:none;padding:16px 40px;border-radius:12px;font-size:16px;font-weight:700;letter-spacing:0.5px;box-shadow:0 4px 16px rgba(216,78,85,0.4);">
+        &#11015; View &amp; Download Ticket
+      </a>
+      <p style="font-size:11px;color:#9ca3af;margin-top:10px;">Click to view your full ticket and print / download as PDF</p>
+    </div>
+
+    <!-- WARNING -->
+    <div style="margin:0 32px 24px;background:#fff3cd;border:1px solid #ffc107;border-radius:10px;padding:14px;font-size:12px;color:#856404;">
+      <strong>&#9888; Important Instructions:</strong><br/>
+      &bull; Carry a valid government-issued photo ID &nbsp;|&nbsp;
+      &bull; Report at boarding point 30 mins before departure &nbsp;|&nbsp;
+      &bull; Show this ticket at boarding
+    </div>
+
+    <!-- FOOTER -->
+    <div style="background:#1a1a2e;padding:18px 32px;text-align:center;">
+      <p style="font-size:13px;color:#fff;font-weight:600;margin:0 0 4px;">Raj Mudra Travels &#128652;</p>
+      <p style="font-size:11px;color:#9ca3af;margin:0;">Thank you for choosing us. Safe travels!</p>
     </div>
   </div>
 </body>
 </html>`;
 };
 
-// ── Send ticket email via Resend (works on Render) ──
+// ── Send ticket email via Gmail ──
 const sendTicketEmail = async (booking) => {
-  if (!process.env.RESEND_API_KEY) {
-    console.log("RESEND_API_KEY not set — skipping email.");
+  if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
+    console.log("Gmail credentials not set — skipping email.");
     return;
   }
   const passenger = booking.passengers[0];
-  if (!passenger?.email) return;
+  if (!passenger?.email) {
+    console.log("No passenger email found — skipping email.");
+    return;
+  }
   try {
-    const { error } = await resend.emails.send({
-      from: "Raj Mudra Travels <onboarding@resend.dev>",
+    const transporter = createTransporter();
+    // Verify connection first
+    await transporter.verify();
+    console.log("Gmail connection verified ✔");
+    const info = await transporter.sendMail({
+      from: `"Raj Mudra Travels" <${process.env.GMAIL_USER}>`,
       to: passenger.email,
-      subject: `Booking Confirmed! ${booking.bookingId} | ${booking.from} to ${booking.to}`,
+      subject: `✅ Booking Confirmed! ${booking.bookingId} | ${booking.from} → ${booking.to}`,
       html: buildTicketHTML(booking),
     });
-    if (error) console.error("Resend error:", error);
-    else console.log(`Ticket email sent to ${passenger.email}`);
+    console.log(`✔ Ticket email sent to ${passenger.email} | MessageId: ${info.messageId}`);
   } catch (err) {
-    console.error("Email send failed:", err.message);
+    console.error("✖ Email send failed:", err.message);
+    console.error("Full error:", err);
   }
 };
 
@@ -196,14 +245,22 @@ exports.cancelBooking = async (req, res) => {
     if (!booking) return res.status(404).json({ success: false, message: "Booking not found" });
     booking.bookingStatus = "cancelled";
     await booking.save();
-    const bus = await Bus.findById(booking.busId);
-    if (bus?.seatLayout) {
-      for (const seat of booking.selectedSeats) {
-        const idx = bus.seatLayout.findIndex((s) => s.seatNumber === seat.seatNumber);
-        if (idx !== -1) { bus.seatLayout[idx].status = "available"; bus.seatLayout[idx].bookedBy = null; }
+
+    // Release seats from BusSeatStatus (date-specific, with gender cleanup)
+    const BusSeatStatus = require("../models/BusSeatStatus");
+    const travelDate = booking.travelDate
+      ? new Date(booking.travelDate).toISOString().split("T")[0]
+      : null;
+    if (travelDate && booking.busId) {
+      const seatNumbers = booking.selectedSeats.map(s => String(s.seatNumber));
+      const status = await BusSeatStatus.findOne({ busId: booking.busId, travelDate });
+      if (status) {
+        status.bookedSeats = status.bookedSeats.filter(s => !seatNumbers.includes(s));
+        for (const sn of seatNumbers) status.seatDetails.delete(sn);
+        await status.save();
       }
-      await bus.save();
     }
+
     res.json({ success: true, message: "Booking cancelled successfully" });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
